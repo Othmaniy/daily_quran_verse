@@ -1,7 +1,7 @@
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 const cron = require('node-cron');
-const token = '7653707024:AAE9oeSly5-Y2W_xFwfY6kKnfQPO2H179jM';
+const token=process.env.TOKEN;
 const bot = new TelegramBot(token, { polling: false });
 const express = require("express");
 const pool = require("./config/db.config");
@@ -132,7 +132,7 @@ app.post('/sendVerseNow', async (req, res) => {
 const userSteps = {};
 app.post('*', async (req, res) => {
     const update = req.body;
-    const messageText = update.message.text;
+    // const messageText = update?.message?.text;
     console.log('Incoming request from Telegram:', update);  // Log the full body
     console.log("New chat member detected");
     console.log(update?.message?.new_chat_members);
@@ -155,7 +155,9 @@ app.post('*', async (req, res) => {
     }
     //with user steps
    
-    if (update.message &&  messageText.charAt(0) === "/") {
+    if (update.message) {
+      if( update.message.text.charAt(0) === "/"){
+        const messageText =update.message.text;
         const command = messageText.substr(1);
         // Command to start setting translation
         if(command=="getId"){
@@ -165,6 +167,7 @@ app.post('*', async (req, res) => {
             await bot.sendMessage(chatId, "Please select your language (e.g., English, Amharic):");
             userSteps[chatId] = 'waiting_for_language'; // Track that we are waiting for a language selection
         }
+      }
     } 
     // Handle language selection after /setTranslation
     else if (userSteps[chatId] === 'waiting_for_language' && messageText) {
