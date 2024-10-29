@@ -19,7 +19,7 @@ pool.getConnection((err)=>{
 let group_chats  = `CREATE TABLE IF NOT EXISTS group_chats(
     id INT AUTO_INCREMENT,
     chat_id BIGINT,
-    prefered_language VARCHAR(255) DEFAULT english, 
+    prefered_language VARCHAR(255) DEFAULT "english", 
     PRIMARY KEY (id),
     UNIQUE KEY (chat_id)
 )`;
