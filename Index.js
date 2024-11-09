@@ -162,9 +162,9 @@ app.post('/sendVerseNow', async (req, res) => {
 const userSteps = {}; 
 
 // Updated updateTranslation function
-const updateTranslation = (chatId, preferredLanguage) => {
-    const sql = `UPDATE group_chats SET prefered_language = ? WHERE chat_id = ?`;
-    pool.query(sql, [preferredLanguage, chatId], (err, results) => {
+const updateTranslation = (chatId, preferredLanguage,languageCode) => {
+    const sql = `UPDATE group_chats SET prefered_language = ?, language_code=? WHERE chat_id = ?`;
+    pool.query(sql, [preferredLanguage,languageCode,chatId], (err, results) => {
         if (err) {
             console.log("Error updating preferred language:", err);
         } else {
@@ -222,18 +222,16 @@ app.post('*', async (req, res) => {
     // Handling language selection from callback query
     if (update.callback_query) {
         const callbackData=update.callback_query.data;
-        const [languageId,languageName]=callbackData.split("|")
+        const [languageCode,languageName]=callbackData.split("|")
         console.log("language id and language name");
-        console.log(languageId,languageName);
-        const selectedLanguage = languageName;
-        const selectedLanguageId=languageId;
+        console.log(languageCode,languageName);
         const callbackChatId = update.callback_query.message.chat.id;
         // console.log("update chat");
         console.log(update.callback_query.message.chat);
         if (userSteps[callbackChatId] === 'selecting_language') {
             // Set user step to 'waiting_for_group_id'
-            userSteps[callbackChatId] = { step: 'waiting_for_group_id', language: selectedLanguage };
-            bot.sendMessage(callbackChatId, `You selected ${selectedLanguage}. Please provide the group chat ID. You can find it by sending /getId to your group.`);
+            userSteps[callbackChatId] = { step: 'waiting_for_group_id', language: languageName,languageCode:languageCode }
+            bot.sendMessage(callbackChatId, `You selected ${languageName}. Please provide the group chat ID. You can find it by sending /getId to your group.`);
         }
     }
 
@@ -242,11 +240,11 @@ app.post('*', async (req, res) => {
         const groupChatId = messageText;
         console.log("group chat id "+groupChatId);
         const selectedLanguage = userSteps[chatId].language;
+        const languageCode=userSteps[chatId].languageCode;
         // Update the language in the database
-        const updateResponse = await updateTranslation(groupChatId, selectedLanguage);
+        const updateResponse = await updateTranslation(groupChatId, selectedLanguage,languageCode);
         console.log(updateResponse);
         bot.sendMessage(chatId, `Your language (${selectedLanguage}) and group chat ID (${groupChatId}) have been set successfully.`);
-
         // Reset user step
         delete userSteps[chatId];
     } 
