@@ -31,6 +31,16 @@ bot.on('new_chat_members', async (msg) => {
 });
 
 //end
+
+// const updateTranslation = (pereferedLanguage)=>{
+//     const sql = `UPDATE group_chats SET prefered_language`;
+//     pool.query(sql,(err,results)=>{
+//         if(err){
+//             console.log(err);
+//         }
+//         return "sucessfully updated"
+//     })
+// }
 const sendDailyVerse = async () => {
     console.log("Fetching chat IDs...");
 
@@ -70,7 +80,7 @@ const sendDailyVerse = async () => {
     }
 };
 
-//scheduler i=using cron
+//scheduler using cron
 //scheduler start
 // cron.schedule('*/2 * * * *', async () => {
 //     console.log("Running daily verse scheduler...");
@@ -104,7 +114,7 @@ const getDailyVerse=async()=>{
     console.log(arabicVerse);
     console.log("response from quran api");
     //fetching amharic verse 
-    const amharicTextResponse = await axios.get(`https://api.quran.com/api/v4/quran/translations/87?verse_key=${verse_key}`)
+    const amharicTextResponse = await axios.get(`https://api.quran.com/api/v4/quran/translations/111?verse_key=${verse_key}`)
     const amharicVerse= amharicTextResponse.data.translations[0].text;
     console.log("amharic verse");
     console.log(amharicVerse);
@@ -120,6 +130,7 @@ const getDailyVerse=async()=>{
      ${arabicName}(${englishName}), ${verse_key}`;
 
 }
+let ListOfTranslations=[]
 const getListOfTranslations =async()=>{
 const response = await axios.get("https://api.quran.com/api/v4/resources/translations")
     console.log("response from list of translations");
@@ -127,7 +138,13 @@ const response = await axios.get("https://api.quran.com/api/v4/resources/transla
     // const numberOfTranslations = response.data.data.translations.length;
     const numberOfTranslations =response.data.translations.length;
     console.log("numberof translations "+numberOfTranslations);
-
+    console.log("list of translations");
+    console.log(response.data.translations);
+    ListOfTranslations=response.data.translations
+    console.log(numberOfTranslations.length);
+    return ListOfTranslations
+//    const ListOfTranslations=response.data.translations
+//    console.log(ListOfTranslations);
 }
 // getListOfTranslations();
 // getDailyVerse()
@@ -141,76 +158,110 @@ app.post('/sendVerseNow', async (req, res) => {
     await sendDailyVerse();
     res.send('Verse sent to all group chats.');
 });
-const userSteps = {};
+// const userSteps = {};
+const userSteps = {}; 
+
+// Updated updateTranslation function
+const updateTranslation = (chatId, preferredLanguage) => {
+    const sql = `UPDATE group_chats SET prefered_language = ? WHERE chat_id = ?`;
+    pool.query(sql, [preferredLanguage, chatId], (err, results) => {
+        if (err) {
+            console.log("Error updating preferred language:", err);
+        } else {
+            console.log("Successfully updated preferred language");
+        }
+    });
+};
+
 app.post('*', async (req, res) => {
     const update = req.body;
-    // const messageText = update?.message?.text;
-    console.log('Incoming request from Telegram:', update);  // Log the full body
-    console.log("New chat member detected");
-    console.log(update?.message?.new_chat_members);
-    if (update.message) {
-        const messageText = update?.message?.text;
-        const chatId = update.message.chat.id;
-        if(update.message.new_chat_members){
-            const newMembers = update.message.new_chat_members;
-            for (const member of newMembers) {
-                if (member.id === 7653707024) {  
-                    console.log(`Bot added to the group: ${chatId}`);
-                    await addChatToDatabase(chatId);  
-                    bot.sendMessage(chatId, 'Thank you for adding me! I will send daily Quran verses Inshallah.');
-                } else {
-                    console.log(`New human member added: ${member.first_name} in chat ${chatId}`);
-                } 
+    const chatId = update.message ? update.message.chat.id : update.callback_query?.message?.chat?.id;
+    const messageText = update.message?.text;
+
+    console.log("Incoming request from Telegram:", update);
+
+    // Handling new members
+    if (update.message?.new_chat_members) {
+        const newMembers = update.message.new_chat_members;
+        for (const member of newMembers) {
+            if (member.id === 7653707024) {
+                console.log(`Bot added to the group: ${chatId}`);
+                await addChatToDatabase(chatId);
+                bot.sendMessage(chatId, 'Thank you for adding me! I will send daily Quran verses Inshallah.');
             }
-        }
-        if( update?.message?.text?.charAt(0) === "/"){
-            const messageText =update.message.text;
-            const command = messageText.substr(1);
-            // Command to start setting translation
-            if(command=="getId"){
-                bot.sendMessage(chatId,`your group groupchatid is ${chatId}`)
-            }
-            else if (command === "setTranslation"  &&update.message.chat.type =="private" ) {
-                await bot.sendMessage(chatId, "Please select your language (e.g., English, Amharic):");
-                userSteps[chatId] = 'waiting_for_language'; // Track that we are waiting for a language selection
-            }
-          }
-        else if (userSteps[chatId] === 'waiting_for_language' && messageText) {
-            if (messageText.toLowerCase().includes("english") || messageText.toLowerCase().includes("amharic")) {
-                const selectedLanguage = messageText;
-                await bot.sendMessage(chatId, `You selected ${selectedLanguage}. Please provide the group chat ID: you can get your group chat id by sending message to your group and send /getId`);
-                userSteps[chatId] = { step: 'waiting_for_group_id', language: selectedLanguage }; // Move to next step
-            } else {
-                await bot.sendMessage(chatId, "Invalid language. Please select either 'English' or 'Amharic'.");
-            }
-        }
-        // Handle group chat ID after language is selected
-        else if (userSteps[chatId]?.step === 'waiting_for_group_id' && messageText && !isNaN(messageText)) {
-            const groupChatId = messageText;
-            const selectedLanguage = userSteps[chatId].language;
-    
-            await bot.sendMessage(chatId, `Your language (${selectedLanguage}) and group chat ID (${groupChatId}) have been set successfully.`);
-            
-            // Save the selected language and groupChatId to your database
-            // await saveTranslationSettings(chatId, selectedLanguage, groupChatId);
-    
-            // Reset user step
-            delete userSteps[chatId];
-        } 
-        // Handle invalid inputs
-        else if (userSteps[chatId]) {
-            await bot.sendMessage(chatId, "Please follow the instructions. Start by selecting a valid language.");
         }
     }
-    //with user steps
-    // if (update.message) {
-     
-    // } 
-    // Handle language selection after /setTranslation
+
+    // Command handling
+    if (messageText?.startsWith("/")) {
+        const command = messageText.slice(1);
+
+        if (command === "getId") {
+            bot.sendMessage(chatId, `Your group chat ID is ${chatId}`);
+        } else if (command === "setTranslation" && update.message.chat.type === "private") {
+            // Start translation setup
+            // const translationOptions = translations.map((translation) => [{
+            //     text: translation.label,
+            //     callback_data: translation.code
+            // }]);
+            const translations = await getListOfTranslations();
+            console.log("get traslations response");
+            console.log(translations);
+            const translationOptions= translations.map((translation)=>[{
+                text:`${translation.language_name},${(translation.translated_name.name)}`,
+                callback_data:`${translation.id}|${translation.language_name}`
+            }])
+            bot.sendMessage(chatId, "Please select your preferred translation:", {
+                reply_markup: { inline_keyboard: translationOptions }
+            });
+
+            userSteps[chatId] = 'selecting_language';
+        }
+    }
+
+    // Handling language selection from callback query
+    if (update.callback_query) {
+        const callbackData=update.callback_query.data;
+        const [languageId,languageName]=callbackData.split("|")
+        console.log("language id and language name");
+        console.log(languageId,languageName);
+        const selectedLanguage = languageName;
+        const selectedLanguageId=languageId;
+        const callbackChatId = update.callback_query.message.chat.id;
+        // console.log("update chat");
+        console.log(update.callback_query.message.chat);
+        if (userSteps[callbackChatId] === 'selecting_language') {
+            // Set user step to 'waiting_for_group_id'
+            userSteps[callbackChatId] = { step: 'waiting_for_group_id', language: selectedLanguage };
+            bot.sendMessage(callbackChatId, `You selected ${selectedLanguage}. Please provide the group chat ID. You can find it by sending /getId to your group.`);
+        }
+    }
+
+    // Handling group chat ID message after language selection
+    if (userSteps[chatId]?.step === 'waiting_for_group_id' && messageText && !isNaN(messageText)) {
+        const groupChatId = messageText;
+        console.log("group chat id "+groupChatId);
+        const selectedLanguage = userSteps[chatId].language;
+        // Update the language in the database
+        const updateResponse = await updateTranslation(groupChatId, selectedLanguage);
+        console.log(updateResponse);
+        bot.sendMessage(chatId, `Your language (${selectedLanguage}) and group chat ID (${groupChatId}) have been set successfully.`);
+
+        // Reset user step
+        delete userSteps[chatId];
+    } 
 
     res.send('OK');
-})
+});
 
+
+
+const translations = [
+    { label: "English", code: "en" },
+    { label: "Amharic", code: "am" },
+    { label: "Arabic", code: "ar" },
+    { label: "French", code: "fr" }
+];
 app.listen("5000",(req,res)=>{
     console.log("server is listening");
 })
