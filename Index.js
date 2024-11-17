@@ -57,17 +57,20 @@ const sendDailyVerse = async () => {
     };
 
     try {
-        const rows = await queryDatabase('SELECT chat_id FROM group_chats');
-        console.log("Chat IDs: ", rows);
+        const rows = await queryDatabase('SELECT chat_id,language_code FROM group_chats');
+        console.log("Chat Ida and language code ", rows);
+
 
         if (!Array.isArray(rows) || rows.length === 0) {
             console.log("No chat IDs found.");
             return;
         }
-        const verse = await getDailyVerse();
+        
 
         for (const row of rows) {
             const chatId = row.chat_id;
+            const languageCode=row.language_code;
+            const verse = await getDailyVerse(languageCode);
             console.log(`Sending verse to ${chatId}`);
             try {
                 await bot.sendMessage(chatId, verse);
@@ -88,7 +91,7 @@ const sendDailyVerse = async () => {
 // }); 
 
 //scheduler end
-const getDailyVerse=async()=>{
+const getDailyVerse=async(languageCode=840)=>{
     // const response  = await axios.get(`http://api.alquran.cloud/v1/ayah/random`);
     //from qura.doc.com
     const verseResponse = await axios.get('https://api.quran.com/api/v4/verses/random');
@@ -114,10 +117,10 @@ const getDailyVerse=async()=>{
     console.log(arabicVerse);
     console.log("response from quran api");
     //fetching amharic verse 
-    const amharicTextResponse = await axios.get(`https://api.quran.com/api/v4/quran/translations/111?verse_key=${verse_key}`)
-    const amharicVerse= amharicTextResponse.data.translations[0].text;
-    console.log("amharic verse");
-    console.log(amharicVerse);
+    const translatedTextResponse = await axios.get(`https://api.quran.com/api/v4/quran/translations/${languageCode}?verse_key=${verse_key}`)
+    const translatedVerse = translatedTextResponse.data.translations[0].text;
+    console.log("translated verse");
+    console.log(translatedVerse);
     // return {
     //     arabic: arabicVerse,
     //     amharic: amharicVerse,
@@ -126,10 +129,11 @@ const getDailyVerse=async()=>{
     // console.log(`Random verse in Arabic: ${verse_key} - ${text_uthmani}`);
     // console.log(response.data);
     // const {text,surah,numberInSurah}=response.data.data;
-     return `arabic verse of the day:\n${arabicVerse}\namharic verse: ${amharicVerse}\nsurah:
+     return `arabic verse of the day:\n${arabicVerse}\ntranslated verse: ${translatedVerse}\nsurah:
      ${arabicName}(${englishName}), ${verse_key}`;
 
 }
+
 let ListOfTranslations=[]
 const getListOfTranslations =async()=>{
 const response = await axios.get("https://api.quran.com/api/v4/resources/translations")
@@ -158,10 +162,8 @@ app.post('/sendVerseNow', async (req, res) => {
     await sendDailyVerse();
     res.send('Verse sent to all group chats.');
 });
-// const userSteps = {};
-const userSteps = {}; 
 
-// Updated updateTranslation function
+const userSteps = {};
 const updateTranslation = (chatId, preferredLanguage,languageCode) => {
     const sql = `UPDATE group_chats SET prefered_language = ?, language_code=? WHERE chat_id = ?`;
     pool.query(sql, [preferredLanguage,languageCode,chatId], (err, results) => {
@@ -199,7 +201,7 @@ app.post('*', async (req, res) => {
         if (command === "getId") {
             bot.sendMessage(chatId, `Your group chat ID is ${chatId}`);
         } else if (command === "setTranslation" && update.message.chat.type === "private") {
-            // Start translation setup
+            // Start translation setup    
             // const translationOptions = translations.map((translation) => [{
             //     text: translation.label,
             //     callback_data: translation.code
